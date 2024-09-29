@@ -9,6 +9,27 @@ use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
+    
+    
+    public function store(Request $request)
+    {
+        session_start();
+        $data = $request->all();
+
+        // Stocker les données dans la session
+        session()->put('payment_data', $data);
+
+        // Effectuer une action quelconque, comme enregistrer les données (facultatif)
+        // Par exemple : Payment::create($data);
+
+        // Retourner une réponse JSON correcte
+        return response()->json(['message' => 'Données reçues et stockées avec succès dans la session!', 'data' => $data], 200);
+    }
+    
+    
+    
+    
+    
     public function initPayment(Request $request)
     {
         // Définir les montants en fonction du type

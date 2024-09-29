@@ -6,73 +6,55 @@ use BaconQrCode\Writer;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
 use BaconQrCode\Renderer\Image\SvgImageBackEnd;
-use BaconQrCode\Renderer\Image\Png;
-use Illuminate\Http\Response;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
 
 class QrCodeController extends Controller
 {
-    public function generate()
+    public function generateInvoiceAndQrCode()
     {
-        // Configuration du générateur de QR Code avec un backend SVG
-        $renderer = new ImageRenderer(
-            new RendererStyle(400),
-            new SvgImageBackEnd()
-        );
-        $writer = new Writer($renderer);
+        session_start();
+        try {
+            // Récupérer les données de paiement depuis la session
+            $data = session()->get('payment_data');
 
-        // Informations du reçu à inclure dans le QR code
-        $receiptData = [
-            'receipt_id' => '123456',
-            'total_amount' => '250.00',
-            'customer_name' => 'John Doe',
-            'date' => now()->toDateString(),
-        ];
+            // Vérifier si les données existent dans la session
+            if (!$data) {
+                return response()->json(['error' => 'Les données de paiement ne sont pas disponibles dans la session.'], 400);
+            }
 
-        // Contenu structuré sous forme de JSON
-        $qrCodeContent = json_encode($receiptData);
+            // Génération de l'ID de la facture (par exemple, basé sur la date et l'heure actuelle)
+            $invoiceNumber = 'INV-' . now()->format('YmdHis');
 
-        // Générer le QR code avec les informations du reçu
-        $qrCodeData = $writer->writeString($qrCodeContent);
+            // Ajout de l'ID de la facture aux données
+            $data['invoice_number'] = $invoiceNumber;
+            $data['date'] = now()->toDateString(); // Ajouter la date de génération
 
-        // Retourner la vue avec le QR code
-        return view('pages.facture', ['qrCodeData' => $qrCodeData, 'receiptData' => $receiptData]);
-    }
+            // Génération du QR code
+            $renderer = new ImageRenderer(
+                new RendererStyle(200), // Taille du QR code
+                new SvgImageBackEnd()
+            );
+            $writer = new Writer($renderer);
 
-    public function saveQrCode()
-    {
-        // Configuration pour générer un QR code au format PNG
-        $renderer = new ImageRenderer(
-            new RendererStyle(200),
-            new Png()
-        );
-        $writer = new Writer($renderer);
+            // Contenu du QR code : les informations de la facture et du paiement
+            $qrCodeContent = json_encode([
+                'invoice_number' => $invoiceNumber,
+                //'total_amount' => $data['total_amount'],
+                'customer_name' => $data['first_name'] . ' ' . $data['last_name'],
+                'date' => $data['date'],
+            ]);
 
-        // Contenu du reçu à inclure dans le QR code
-        $receiptData = [
-            'receipt_id' => '123456',
-            'total_amount' => '250.00',
-            'customer_name' => 'John Doe',
-            'date' => now()->toDateString(),
-        ];
+            // Générer le QR code avec les informations de la facture
+            $qrCodeData = $writer->writeString($qrCodeContent); // Générer le QR code en format SVG
 
-        // Convertir les données en JSON
-        $qrCodeContent = json_encode($receiptData);
-
-        // Générer le QR code en chaîne de caractères (format PNG)
-        $qrCodeData = $writer->writeString($qrCodeContent);
-
-        // Chemin pour sauvegarder le fichier
-        $outputFilePath = public_path('qrcodes/receipt_qrcode.png');
-
-        // Créer le dossier "qrcodes" s'il n'existe pas
-        if (!File::exists(public_path('qrcodes'))) {
-            File::makeDirectory(public_path('qrcodes'), 0755, true);
+            // Retourner la vue avec le QR code et les informations de la facture
+            return view('pages.invoice', [
+                'qrCodeData' => $qrCodeData, // Le code QR généré
+                'invoiceData' => $data // Les informations de la facture
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Erreur lors de la génération de la facture et du QR Code', 'message' => $e->getMessage()], 500);
         }
-
-        // Sauvegarder le QR code sous forme d'image PNG
-        file_put_contents($outputFilePath, $qrCodeData);
-
-        return response()->json(['message' => 'QR Code generated and saved successfully!', 'file' => $outputFilePath]);
     }
 }

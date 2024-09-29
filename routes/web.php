@@ -38,7 +38,14 @@ Route::get('/qr', function (){
     return view('page.qr');
 });
 
-Route::get('/qr-code', [QrCodeController::class, 'generate']);
+//Route::post('/recu', [QrCodeController::class, 'generate'])->name('recu');
+//Route::get('/recu', [QrCodeController::class, 'generate']);
+Route::post('/recu', [PaymentController::class, 'store'])->name('recu');
+
+Route::post('/generate-invoice', [QrCodeController::class, 'generateInvoiceAndQrCode'])->name('generate.invoice');
+Route::get('/generate-invoice', [QrCodeController::class, 'generateInvoiceAndQrCode'])->name('generate.invoice');
+
+
 
 
 Route::middleware(['cors'])->group(function () {
