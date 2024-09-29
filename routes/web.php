@@ -32,6 +32,7 @@ use Illuminate\Support\Facades\Route;
 | contains the "web" middleware group. Now create something great!
 |
 */
+
 Route::get('/', [HomeController::class, 'home'])->name('home');
 Route::get('/qr', function (){
     return view('page.qr');
@@ -43,6 +44,12 @@ Route::get('/qr-code', [QrCodeController::class, 'generate']);
 Route::middleware(['cors'])->group(function () {
     Route::get('/pay-concourse', [HomeController::class, 'payConcourse']);
     Route::post('/add-concourse-writer', [ConcourseWriterController::class, 'addConcourseWriters'])->name('add-concourse-writer');
+    /**
+     * Routes pour les paiements via giselpay
+     */
+    Route::post('/giselpay/init', [PaymentController::class, 'initPayment'])->name('payment.init');
+    Route::post('/giselpay/check', [PaymentController::class, 'checkPayment'])->name('payment.check');
+
     // Route::post('/add-concourse-writer', 'ConcourseWriterController@addConcourseWriters');
 
 
@@ -100,4 +107,3 @@ Route::middleware(['cors'])->group(function () {
         Route::post('/session', [SessionsController::class, 'store']);
     });
 });
-

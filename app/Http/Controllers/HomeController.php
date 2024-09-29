@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Classe;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class HomeController extends Controller
 {
@@ -12,10 +13,11 @@ class HomeController extends Controller
         return view('pages.home');
     }
 
-    public function payConcourse(){
+    public function payConcourse()
+    {
         $classes = Classe::where('status', 'active')->get();
         return view('pages.pay-concourse')
-        ->with('classes', $classes)
-        ;
+            ->with('classes', $classes);
     }
+
 }

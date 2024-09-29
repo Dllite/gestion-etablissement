@@ -108,10 +108,10 @@
                         <div class="card form-main mt-2">
                             <div class="card-header pb-0 text-left bg-transparent">
                                 <h3 class="font-weight-bolder text-info text-gradient"> <a href="/">
-                                        < </a> Paiement de concours ou Examen de dossier</h3>
+                                         </a> Paiement de concours ou Examen de dossier</h3>
                             </div>
                             <div class="card-body">
-                                <form role="form" method="POST" id="myForm" action="/add-concourse-writer">
+                                <form role="form" method="POST" id="myForm" action="{{ route('payment.init') }}">
                                     @csrf
                                     <div class="row mb-3">
                                         <div class="col-6">
@@ -135,13 +135,6 @@
                                                     <option value="nouveau">Nouveau</option>
                                                 </select>
                                             </div>
-                                        </div>
-
-                                        <div class="col-6">
-                                            <label>Numéro de Paiement</label>
-                                            <input minlength="9" maxlength="9" class="form-control" name="contact"
-                                                id="contact" placeholder="Numéro de téléphone" aria-label="number"
-                                                required>
                                         </div>
                                     </div>
                                     <div class="row mb-3">
@@ -214,36 +207,182 @@
         </section>
     </main>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script src='https://terminal.giselpay.com/live/start?v=1.0'></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
-        var modal = document.getElementById('modal');
-        var openModalBtn = document.getElementById('openModalBtn');
-        var closeModalBtn = document.getElementById('closeModalBtn');
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('myForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                modal.style.display = 'block';
-                const contact = document.getElementById('contact').value;
+        document.getElementById('myForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // Empêche le rechargement de la page
 
-                document.getElementById('pay_number').innerHTML = contact;
+            // Récupérer les valeurs des champs
+            var name = document.getElementById('first_name').value;
+            var libelle = document.getElementById('libelle').value;
+            var type = document.getElementById('type').value;
 
-                placePayment()
-                    .then(result => {
-                        if (result.status) {
-                            const paymentId = result.response.paymentId;
-                            pollPaymentStatus(paymentId);
-                        } else {
-                            console.error('Payment failed:', result.response);
-                        }
+            // Préparer les données pour l'initialisation du paiement
+            var data = {
+                first_name: name,
+                libelle: libelle,
+                type: type,
+                _token: '{{ csrf_token() }}' // Inclure le token CSRF
+            };
+
+            // Envoi de la requête AJAX vers la route payment.init
+            fetch('/giselpay/init', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                    },
+                    body: JSON.stringify(data)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Si la requête a réussi et renvoie une référence
+                    if (data.statut === 'ok') {
+
+                        console.log("Référence de paiement : ", data);
+                        // Ici, tu peux rediriger l'utilisateur vers GiselPay pour finaliser le paiement
+                        init_giselpay(data.reference);
+
+                        // Ecouter les messages de l'iframe de GiselPay
+                        window.addEventListener("message", (e) => {
+                            var eventData = e.data;
+                            if (eventData.close_panel !== undefined) {
+                                var ref = eventData.ref;
+                                console.log('Pop-up fermée', eventData);
+
+                                fetch('/giselpay/check', {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json', // Correction de l'erreur ici
+                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                        },
+                                        body: JSON.stringify({
+                                            ref: ref
+                                        }) // Encapsuler correctement les données
+                                    })
+                                    .then(response => response.json())
+                                    .then(data => {
+                                        console.log('Données après la fermeture du pop-up', data);
+
+                                        if (data.statut === 'valide') {
+                                            Swal.fire({
+                                                title: 'Paiement réussi!',
+                                                text: 'Référence de paiement : ' + data
+                                                    .reference,
+                                                icon: 'success',
+                                                confirmButtonText: 'OK'
+                                            }).then(() => {
+                                                // Logique pour envoyer les données via Ajax après validation du paiement
+                                                $(function() {
+                                                    $.ajax({
+                                                        url: '{{ url('add-concourse-writer') }}',
+                                                        type: 'POST',
+                                                        data: $('#myForm')
+                                                            .serialize(), // Sérialiser le formulaire
+                                                        success: function(
+                                                            response) {
+                                                            console.log(
+                                                                "response",
+                                                                response
+                                                                );
+                                                            alert(
+                                                                'Paiement effectué avec succès');
+                                                            modal.style
+                                                                .display =
+                                                                'none';
+                                                            document
+                                                                .getElementById(
+                                                                    'myForm'
+                                                                    )
+                                                                .reset(); // Réinitialiser le formulaire
+                                                        },
+                                                        error: function(
+                                                            error) {
+                                                            console.log(
+                                                                "error",
+                                                                error
+                                                                );
+                                                            alert(
+                                                                'Erreur lors de l\'ajout du paiement');
+                                                            modal.style
+                                                                .display =
+                                                                'none';
+                                                        }
+                                                    });
+                                                });
+                                                var recudata = {
+                                                    nom: data.result.user_name,
+                                                    prenom: data.result.user_name,
+                                                    description: libelle,
+                                                    type: type,
+                                                    montant: data.result.amount,
+                                                    date: data.result.date_init,
+                                                    heure: data.heure_init,
+                                                    statut: data.result.statut,
+                                                }
+                                                console.log(recudata)
+
+                                                fetch('/recu', {
+                                                    method: 'POST', // Ajout de la méthode POST
+                                                    headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                                    },
+                                                    body: JSON.stringify(recuData)
+                                                }).then(response => {
+                                                    console.log(
+                                                        'Reçu envoyé avec succès'
+                                                    );
+                                                }).catch(error => {
+                                                    console.error(
+                                                        'Erreur lors de l\'envoi du reçu : ' +
+                                                        error.message);
+                                                });
+                                                console.log('Paiement terminé');
+                                            });
+                                        } else if (data.statut === 'error') {
+                                            Swal.fire({
+                                                title: 'Erreur!',
+                                                text: 'Le paiement n\'a pas été effectué',
+                                                icon: 'error',
+                                                confirmButtonText: 'Réessayer'
+                                            });
+                                        }
+                                    })
+                                    .catch(error => {
+                                        Swal.fire({
+                                            title: 'Erreur!',
+                                            text: 'Erreur lors de la vérification du paiement : ' +
+                                                error.message,
+                                            icon: 'error',
+                                            confirmButtonText: 'OK'
+                                        });
+                                    });
+                            }
+                        });
+                    } else {
+                        Swal.fire({
+                            title: 'Erreur!',
+                            text: 'Erreur lors de l\'initialisation du paiement',
+                            icon: 'error',
+                            confirmButtonText: 'Réessayer'
+                        });
+                    }
+                })
+                .catch(error => {
+                    Swal.fire({
+                        title: 'Erreur!',
+                        text: 'Erreur lors de l\'initialisation du paiement : ' + error.message,
+                        icon: 'error',
+                        confirmButtonText: 'Réessayer'
                     });
-
-            });
+                });
         });
 
-        closeModalBtn.addEventListener('click', function() {
-            modal.style.display = 'none';
-        });
-
+        // javascript pour gerer les classes en fonction des cycles
         var selectElement = document.getElementById('cycle');
         var selectUser = document.getElementById('classe_id');
 
@@ -267,145 +406,141 @@
             selectUser.innerHTML = startingHtml;
         });
 
-        //payment function
-        function placePayment() {
-            const apiUrl = 'https://api.monetbil.com/payment/v1/placePayment';
-            const contact = document.getElementById('contact').value;
-            const requestBody = {
-                service: 'geYKBeSEmjzCr9xj4gaxSzTvQKp5kcXM',
-                phonenumber: contact,
-                amount: '100',
-                notify_url: 'http://localhost:8000',
-            };
+        // //payment function
+        // function placePayment() {
+        //     const apiUrl = 'https://api.monetbil.com/payment/v1/placePayment';
+        //     const contact = document.getElementById('contact').value;
+        //     const requestBody = {
+        //         service: 'geYKBeSEmjzCr9xj4gaxSzTvQKp5kcXM',
+        //         phonenumber: contact,
+        //         amount: '100',
+        //         notify_url: 'http://localhost:8000',
+        //     };
 
-            return new Promise((resolve, reject) => {
-                fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(requestBody),
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            return response.json();
-                        } else {
-                            throw new Error('Request failed');
-                        }
-                    })
-                    .then(data => {
-                        resolve({
-                            status: true,
-                            response: data
-                        });
-                    })
-                    .catch(error => {
-                        console.error('API request failed:', error);
-                        resolve({
-                            status: false,
-                            response: error
-                        });
-                    });
-            });
-        }
+        //     return new Promise((resolve, reject) => {
+        //         fetch(apiUrl, {
+        //                 method: 'POST',
+        //                 headers: {
+        //                     'Content-Type': 'application/json',
+        //                 },
+        //                 body: JSON.stringify(requestBody),
+        //             })
+        //             .then(response => {
+        //                 if (response.ok) {
+        //                     return response.json();
+        //                 } else {
+        //                     throw new Error('Request failed');
+        //                 }
+        //             })
+        //             .then(data => {
+        //                 resolve({
+        //                     status: true,
+        //                     response: data
+        //                 });
+        //             })
+        //             .catch(error => {
+        //                 console.error('API request failed:', error);
+        //                 resolve({
+        //                     status: false,
+        //                     response: error
+        //                 });
+        //             });
+        //     });
+        // }
 
-        function checkPayment(paymentId) {
-            const apiUrl = 'https://api.monetbil.com/payment/v1/checkPayment';
-            const data = new URLSearchParams({
-                paymentId
-            });
+        // function checkPayment(paymentId) {
+        //     const apiUrl = 'https://api.monetbil.com/payment/v1/checkPayment';
+        //     const data = new URLSearchParams({
+        //         paymentId
+        //     });
 
-            return fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: data.toString(),
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Request failed');
-                    }
-                })
-                .then(jsonArry => {
-                    if (jsonArry.transaction) {
-                        const status = jsonArry.transaction.status;
-                        console.log(jsonArry.transaction.status);
-                        if (status == 1) {
-                            // Successful payment
-                            return {
-                                status: 'success'
-                            };
-                        } else if (status == -1) {
-                            alert('Annuler le paiement');
-                            // Transaction cancelled
-                            return {
-                                status: 'cancelled'
-                            };
-                        } else {
-                            alert('Echec du paiement');
-                            // Payment failed
-                            return {
-                                status: 'failed'
-                            };
-                        }
-                    } else {
-                        document.getElementById('paymentMessage').innerHTML = "En attente de validation....";
-                        return {
-                            status: 'waiting'
-                        };
-                    }
-                })
-                .catch(error => {
-                    console.error('API request failed:', error);
-                    return {
-                        status: 'error',
-                        error
-                    };
-                });
-        }
+        //     return fetch(apiUrl, {
+        //             method: 'POST',
+        //             headers: {
+        //                 'Content-Type': 'application/x-www-form-urlencoded',
+        //             },
+        //             body: data.toString(),
+        //         })
+        //         .then(response => {
+        //             if (response.ok) {
+        //                 return response.json();
+        //             } else {
+        //                 throw new Error('Request failed');
+        //             }
+        //         })
+        //         .then(jsonArry => {
+        //             if (jsonArry.transaction) {
+        //                 const status = jsonArry.transaction.status;
+        //                 console.log(jsonArry.transaction.status);
+        //                 if (status == 1) {
+        //                     // Successful payment
+        //                     return {
+        //                         status: 'success'
+        //                     };
+        //                 } else if (status == -1) {
+        //                     alert('Annuler le paiement');
+        //                     // Transaction cancelled
+        //                     return {
+        //                         status: 'cancelled'
+        //                     };
+        //                 } else {
+        //                     alert('Echec du paiement');
+        //                     // Payment failed
+        //                     return {
+        //                         status: 'failed'
+        //                     };
+        //                 }
+        //             } else {
+        //                 document.getElementById('paymentMessage').innerHTML = "En attente de validation....";
+        //                 return {
+        //                     status: 'waiting'
+        //                 };
+        //             }
+        //         })
+        //         .catch(error => {
+        //             console.error('API request failed:', error);
+        //             return {
+        //                 status: 'error',
+        //                 error
+        //             };
+        //         });
+        // }
 
-        function pollPaymentStatus(paymentId) {
-            const checkInterval = 5000; // 5 seconds
+        // function pollPaymentStatus(paymentId) {
+        //     const checkInterval = 5000; // 5 seconds
 
-            function checkAndHandleStatus() {
-                checkPayment(paymentId)
-                    .then(result => {
-                        if (result.status == 'success' || result.status == 'cancelled' || result.status ==
-                            'failed') {
-                            $(function() {
-                                // $.ajaxSetup({
-                                //     headers: {
-                                //         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                                //     }
-                                // });
-                                $.ajax({
-                                    url: '{{ url('add-concourse-writer') }}',
-                                    type: 'POST',
-                                    data: $('#myForm').serialize(),
-                                    success: function(response) {
-                                        console.log("response", response);
-                                        alert('Paiement effectué avec succès')
-                                        modal.style.display = 'none';
-                                        document.getElementById('myForm').reset();
-                                    },
-                                    error: function(error) {
-                                        console.log("error", error);
-                                        alert('Erreur lors de l\'ajout du paiement')
-                                        modal.style.display = 'none';
-                                    }
-                                })
-                            })
-                        } else {
-                            // Continue polling
-                            setTimeout(checkAndHandleStatus, checkInterval);
-                        }
-                    });
-            }
+        //     function checkAndHandleStatus() {
+        //         checkPayment(paymentId)
+        //             .then(result => {
+        //                 if (result.status == 'success' || result.status == 'cancelled' || result.status ==
+        //                     'failed') {
+        //                     $(function() {
 
-            checkAndHandleStatus(); // Initial check
-        }
+        //                         $.ajax({
+        //                             url: '{{ url('add-concourse-writer') }}',
+        //                             type: 'POST',
+        //                             data: $('#myForm').serialize(),
+        //                             success: function(response) {
+        //                                 console.log("response", response);
+        //                                 alert('Paiement effectué avec succès')
+        //                                 modal.style.display = 'none';
+        //                                 document.getElementById('myForm').reset();
+        //                             },
+        //                             error: function(error) {
+        //                                 console.log("error", error);
+        //                                 alert('Erreur lors de l\'ajout du paiement')
+        //                                 modal.style.display = 'none';
+        //                             }
+        //                         })
+        //                     })
+        //                 } else {
+        //                     // Continue polling
+        //                     setTimeout(checkAndHandleStatus, checkInterval);
+        //                 }
+        //             });
+        //     }
+
+        //     checkAndHandleStatus(); // Initial check
+        // }
     </script>
 @endsection
