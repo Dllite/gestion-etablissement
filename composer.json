@@ -6,6 +6,7 @@
     "license": "MIT",
     "require": {
         "php": "^8.2",
+        "bacon/bacon-qr-code": "^3.0",
         "guzzlehttp/guzzle": "^7.4",
         "hachther/laravel-mesomb": "^1.7",
         "hachther/mesomb": "^2.1",
