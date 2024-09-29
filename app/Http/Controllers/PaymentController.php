@@ -20,7 +20,7 @@ class PaymentController extends Controller
         session()->put('payment_data', $data);
 
         // Effectuer une action quelconque, comme enregistrer les données (facultatif)
-        // Par exemple : Payment::create($data);
+        Payment::create($data);
 
         // Retourner une réponse JSON correcte
         return response()->json(['message' => 'Données reçues et stockées avec succès dans la session!', 'data' => $data], 200);

@@ -192,8 +192,7 @@
                                         console.log(
                                             'Result :',
                                             response.result.statut);
-                                        if (response && response.result.statut ===
-                                            'valide') {
+                                        if (response && response.result.statut === 'valide') {
                                             formData2.payment_reference =
                                             ref; // Ajouter la référence de paiement
 
