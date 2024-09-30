@@ -34,7 +34,7 @@
         }
     </style>
 
-    <div id="newModal" class="new-modal">
+    {{-- <div id="newModal" class="new-modal">
         <div class="new-modal-content">
             <span class="close">&times;</span>
             <h2>Paiement</h2>
@@ -42,11 +42,11 @@
             <p id="paymentMessage"></p>
             <button class="btn btn-primary" id="closeModalBtn">Annuler</button>
         </div>
-    </div>
+    </div> --}}
     <div>
         <!-- Modal -->
-        <div class="modal fade" id="exampleModalMessage" tabindex="-1" role="dialog"
-            aria-labelledby="exampleModalMessageTitle" aria-hidden="true">
+        <div class="modal fade" id="exampleModalMessage" tabindex="-1" role="dialog" aria-labelledby="exampleModalMessageTitle"
+            aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
@@ -64,13 +64,8 @@
                                     style="display: none">
                                 <div class="form-group col-12">
                                     <label>Montant du paiement</label>
-                                    <input name="amount_paid" placeholder="amuont paied" type="number"
-                                        max="{{ $max }}" class="form-control" required />
-                                </div>
-                                <div class="col-12">
-                                    <label>Numéro de paiement</label>
-                                    <input minlength="9" maxlength="9" class="form-control" name="contact" id="contact"
-                                        placeholder="Numéro de téléphone" aria-label="number" required>
+                                    <input name="amount_paid" id="amount_paid" placeholder="amuont paied" type="number"
+                                        max="{{ $max }}" class="form-control" required readonly />
                                 </div>
                                 <div class="mb-3">
                                     <label>Tranche</label>
@@ -303,7 +298,6 @@
                                 </table>
                             </div>
                         </div>
-
                     </div>
                 </div>
             </div>
@@ -311,178 +305,384 @@
     </div>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src='https://terminal.giselpay.com/live/start?v=1.0'></script>
     <script>
-        var modal = document.getElementById('newModal');
+        var modal = document.getElementById('exampleModalMessage');
         var openModalBtn = document.getElementById('openModalBtn');
         var closeModalBtn = document.getElementById('closeModalBtn');
         var student_id = {!! $student->id !!};
+        // Fonction pour mettre à jour le montant en fonction du type de paiement sélectionné
+        function updateAmount() {
+            var trancheValue = document.getElementById('tranche').value;
+
+            // Déterminer le montant en fonction du type de tranche
+            var amount = trancheValue === 'inscription' ? 10000 :
+                trancheValue === 'tranche1' ? 30000 :
+                trancheValue === 'tranche2' ? 30000 :
+                trancheValue === 'tranche3' ? 40000 : 0;
+
+            // Modifier la valeur du champ 'amount_paid' avec le montant correspondant
+            document.getElementById('amount_paid').value = amount;
+        }
+        amount = document.getElementById('amount_paid').value;
+
+        // Ajouter un écouteur d'événement pour détecter les changements dans le champ de sélection 'tranche'
+        document.getElementById('tranche').addEventListener('change', updateAmount);
+
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('myForm').addEventListener('submit', function(e) {
                 e.preventDefault();
-                modal.style.display = 'block';
-                const contact = document.getElementById('contact').value;
+                // Fermer le modal
+                var modal = new bootstrap.Modal(document.getElementById('exampleModalMessage'));
+                modal.hide();
 
-                document.getElementById('pay_number').innerHTML = contact;
+                // Récupérer les valeurs du formulaire et inclure le montant dans formData2
+                // Récupérer la valeur de la tranche
+                var tranche = document.getElementById('tranche').value;
 
-                placePayment()
-                    .then(result => {
-                        if (result.status) {
-                            const paymentId = result.response.paymentId;
-                            pollPaymentStatus(paymentId);
+                // Définir le prénom de l'étudiant à partir de Blade
+                var first_name = "{{ $student->first_name }}";
+
+                // Créer l'objet formData2
+                var formData2 = {
+                    first_name: "{{ $student->first_name }}", // Valeur depuis Blade
+                    last_name: "{{ $student->last_name }}", // Valeur depuis Blade
+                    tranche: tranche, // Récupéré depuis l'élément HTML
+                    libelle: 'Paiement ' + tranche + ' pour l\'etudiant ' +
+                        first_name, // Concaténation correcte
+                    payment_mode: document.getElementById('payment_mode')
+                        .value, // Récupéré depuis l'élément HTML
+                    total_amount: document.getElementById('amount_paid').value, // Montant
+                    anciennete: "{{ $student->anciennete }}", // Valeur depuis Blade
+                    cycle: "{{ $student->classe->cycle }}", // Valeur depuis Blade
+                    classe_id: "{{ $student->classe->id }}", // Valeur depuis Blade
+                    type: tranche, // Tranche récupérée
+                    address: "{{ $student->address }}", // Valeur depuis Blade
+                    contact: "{{$student->contact}}", // Valeur fixe (à modifier si nécessaire après paiement réussi)
+                    concourse_writer_id: "{{ $student->id }}"
+                };
+
+
+                //Initialiser les données de paiement pour GiselPay
+                var formData = {
+                    user_name: "{{ Auth::user()->first_name ?? '' }} {{ Auth::user()->last_name ?? '' }}",
+                    amount: document.getElementById('amount_paid')
+                    .value, // Utiliser la même valeur pour le montant
+                    description: document.getElementById('libelle').value,
+                    token: '22EMN+K2QBZ8enkEw5GPz.f9ANmKzs20240928', // Remplacez par votre vrai token GiselPay
+                    reference_order: 'INV-' + new Date().getTime() // Générer une référence unique
+                };
+
+                console.log("Données du paiement à envoyer :", formData);
+
+                // Étape 1 : Initialiser le paiement via l'API GiselPay
+                $.ajax({
+                    type: "POST",
+                    url: "https://app.giselpay.com/api/v2/payment",
+                    data: JSON.stringify(formData),
+                    contentType: "application/json",
+                    dataType: "json",
+                    success: function(response) {
+                        console.log('Réponse de GiselPay :', response);
+
+                        // Vérifier si l'initialisation du paiement est réussie
+                        if (response && response.reference) {
+                            Swal.fire({
+                                title: 'Paiement en cours',
+                                text: 'Veuillez valider votre paiement.',
+                                icon: 'info',
+                                showConfirmButton: false,
+                                allowOutsideClick: false
+                            });
+
+                            // Lancer le panel de paiement avec la référence renvoyée
+                            init_giselpay(response.reference);
+
+                            // Étape 2 : Écouter la fermeture du panel de paiement GiselPay pour récupérer la référence
+                            window.addEventListener("message", function(e) {
+                                var data = e.data;
+                                if (data.close_panel !== undefined) {
+                                    var ref = data.ref;
+                                    console.log(
+                                        'Panel de paiement fermé avec la référence :',
+                                        ref);
+
+                                    // Vérification du statut du paiement via GiselPay API
+                                    $.ajax({
+                                        type: "POST",
+                                        url: "https://app.giselpay.com/api/v2/check",
+                                        data: JSON.stringify({
+                                            "reference": ref,
+                                            "token": '22EMN+K2QBZ8enkEw5GPz.f9ANmKzs20240928'
+                                        }),
+                                        contentType: "application/json",
+                                        dataType: "json",
+                                        success: function(response) {
+                                            console.log(
+                                                'Réponse de la vérification du paiement :',
+                                                response);
+                                            console.log(
+                                                'Statut :',
+                                                response.statut);
+                                            console.log(
+                                                'Result :',
+                                                response.result.statut);
+                                            if (response && response.result
+                                                .statut ===
+                                                'valide') {
+                                                formData2
+                                                    .payment_reference =
+                                                    ref;// Ajouter la référence de paiement
+
+                                                // Soumettre les données au backend
+                                                fetch("{{ route('recu') }}", {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json',
+                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                                                        },
+                                                        body: JSON
+                                                            .stringify(
+                                                                formData2
+                                                            )
+                                                    })
+                                                    .then(response =>
+                                                        response.json())
+                                                    .then(data => {
+                                                        console.log(
+                                                            'Réponse du backend après soumission :',
+                                                            data);
+
+                                                        Swal.fire({
+                                                            title: 'Paiement Terminé!',
+                                                            text: 'Votre paiement a été validé et les données ont été enregistrées.',
+                                                            icon: 'success',
+                                                            confirmButtonText: 'OK'
+                                                        }).then(
+                                                            () => {
+                                                                window
+                                                                    .location
+                                                                    .href =
+                                                                    "/generate-invoice"; // Redirige vers la page d'accueil ou une autre page
+                                                            });
+                                                    })
+                                                    .catch(error => {
+                                                        console.error(
+                                                            'Erreur lors de la soumission des données :',
+                                                            error);
+                                                        Swal.fire({
+                                                            title: 'Erreur!',
+                                                            text: 'Erreur lors de la soumission des données après le paiement : ' +
+                                                                error
+                                                                .message,
+                                                            icon: 'error',
+                                                            confirmButtonText: 'Réessayer'
+                                                        });
+                                                    });
+                                            } else {
+                                                Swal.fire({
+                                                    title: 'Erreur!',
+                                                    text: 'Le paiement n\'a pas pu être validé. Veuillez réessayer.',
+                                                    icon: 'error',
+                                                    confirmButtonText: 'Réessayer'
+                                                });
+                                            }
+                                        },
+                                        error: function(xhr, status, error) {
+                                            console.error(
+                                                "Erreur lors de la vérification du paiement :",
+                                                error);
+                                        }
+                                    });
+                                }
+                            });
+
                         } else {
-                            console.error('Payment failed:', result.response);
+                            Swal.fire({
+                                title: 'Erreur!',
+                                text: 'Impossible de lancer le paiement. Veuillez réessayer.',
+                                icon: 'error',
+                                confirmButtonText: 'Réessayer'
+                            });
                         }
-                    });
+                    },
+                    error: function(error) {
+                        console.error('Erreur lors de l\'initialisation du paiement :', error);
+                        Swal.fire({
+                            title: 'Erreur!',
+                            text: 'Erreur lors de l\'initialisation du paiement. Veuillez réessayer.',
+                            icon: 'error',
+                            confirmButtonText: 'Réessayer'
+                        });
+                    }
+                });
+
+                //document.getElementById('pay_number').innerHTML = contact;
+
+                //placePayment()
+                //  .then(result => {
+                //    if (result.status) {
+                //      const paymentId = result.response.paymentId;
+                //    pollPaymentStatus(paymentId);
+                //} else {
+                //  console.error('Payment failed:', result.response);
+                //}
+                //});
 
             });
         });
 
-        closeModalBtn.addEventListener('click', function() {
-            modal.style.display = 'none';
-        });
+
+        // closeModalBtn.addEventListener('click', function() {
+        //     modal.style.display = 'none';
+        // });
 
 
         //payment function
-        function placePayment() {
-            const apiUrl = 'https://api.monetbil.com/payment/v1/placePayment';
-            const contact = document.getElementById('contact').value;
-            const requestBody = {
-                service: 'geYKBeSEmjzCr9xj4gaxSzTvQKp5kcXM',
-                phonenumber: contact,
-                amount: '100',
-                notify_url: 'http://localhost:8000',
-            };
+        // function placePayment() {
+        //   const apiUrl = 'https://api.monetbil.com/payment/v1/placePayment';
+        // const contact = document.getElementById('contact').value;
+        //const requestBody = {
+        //  service: 'geYKBeSEmjzCr9xj4gaxSzTvQKp5kcXM',
+        // phonenumber: contact,
+        //amount: '100',
+        // notify_url: 'http://localhost:8000',
+        //};
 
-            return new Promise((resolve, reject) => {
-                fetch(apiUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify(requestBody),
-                    })
-                    .then(response => {
-                        if (response.ok) {
-                            return response.json();
-                        } else {
-                            throw new Error('Request failed');
-                        }
-                    })
-                    .then(data => {
-                        resolve({
-                            status: true,
-                            response: data
-                        });
-                    })
-                    .catch(error => {
-                        console.error('API request failed:', error);
-                        resolve({
-                            status: false,
-                            response: error
-                        });
-                    });
-            });
-        }
+        //return new Promise((resolve, reject) => {
+        //  fetch(apiUrl, {
+        //        method: 'POST',
+        //      headers: {
+        //        'Content-Type': 'application/json',
+        //  },
+        //body: JSON.stringify(requestBody),
+        // })
+        //.then(response => {
+        //  if (response.ok) {
+        //    return response.json();
+        //} else {
+        //  throw new Error('Request failed');
+        //}
+        //})
+        //.then(data => {
+        //  resolve({
+        //    status: true,
+        //  response: data
+        //});
+        //})
+        //.catch(error => {
+        //  console.error('API request failed:', error);
+        //resolve({
+        //  status: false,
+        //response: error
+        //});
+        //});
+        //});
+        //}
 
-        function checkPayment(paymentId) {
-            const apiUrl = 'https://api.monetbil.com/payment/v1/checkPayment';
-            const data = new URLSearchParams({
-                paymentId
-            });
+        //function checkPayment(paymentId) {
+        //  const apiUrl = 'https://api.monetbil.com/payment/v1/checkPayment';
+        //const data = new URLSearchParams({
+        //  paymentId
+        //});
 
-            return fetch(apiUrl, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: data.toString(),
-                })
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Request failed');
-                    }
-                })
-                .then(jsonArry => {
-                    if (jsonArry.transaction) {
-                        const status = jsonArry.transaction.status;
-                        console.log(jsonArry.transaction.status);
-                        if (status == 1) {
-                            // Successful payment
-                            return {
-                                status: 'success'
-                            };
-                        } else if (status == -1) {
-                            alert('Paiement annulé');
-                            // Transaction cancelled
-                            return {
-                                status: 'cancelled'
-                            };
-                        } else {
-                            alert('Echec du paiement');
-                            // Payment failed
-                            return {
-                                status: 'failed'
-                            };
-                        }
-                    } else {
-                        document.getElementById('paymentMessage').innerHTML = "En attente de validation....";
-                        return {
-                            status: 'waiting'
-                        };
-                    }
-                })
-                .catch(error => {
-                    console.error('API request failed:', error);
-                    return {
-                        status: 'error',
-                        error
-                    };
-                });
-        }
+        //return fetch(apiUrl, {
+        //      method: 'POST',
+        //    headers: {
+        //      'Content-Type': 'application/x-www-form-urlencoded',
+        //},
+        //body: data.toString(),
+        //})
+        //.then(response => {
+        //  if (response.ok) {
+        //    return response.json();
+        //} else {
+        //  throw new Error('Request failed');
+        //}
+        //})
+        //.then(jsonArry => {
+        //  if (jsonArry.transaction) {
+        //    const status = jsonArry.transaction.status;
+        //  console.log(jsonArry.transaction.status);
+        //if (status == 1) {
+        // Successful payment
+        //  return {
+        //    status: 'success'
+        //};
+        //} else if (status == -1) {
+        //  alert('Paiement annulé');
+        // Transaction cancelled
+        //return {
+        //  status: 'cancelled'
+        //};
+        //} else {
+        //  alert('Echec du paiement');
+        // Payment failed
+        //return {
+        //  status: 'failed'
+        //};
+        //}
+        //} else {
+        //  document.getElementById('paymentMessage').innerHTML = "En attente de validation....";
+        // return {
+        //   status: 'waiting'
+        //};
+        //}
+        //})
+        //.catch(error => {
+        //  console.error('API request failed:', error);
+        //return {
+        //  status: 'error',
+        //error
+        //};
+        //});
+        //}
 
-        function pollPaymentStatus(paymentId) {
-            const checkInterval = 5000; // 5 seconds
+        //function pollPaymentStatus(paymentId) {
+        //  const checkInterval = 5000; // 5 seconds
 
-            function checkAndHandleStatus() {
-                checkPayment(paymentId)
-                    .then(result => {
-                        if (result.status == 'success' || result.status == 'cancelled' || result.status ==
-                            'failed') {
+        //function checkAndHandleStatus() {
+        //  checkPayment(paymentId)
+        //    .then(result => {
+        //      if (result.status == 'success' || result.status == 'cancelled' || result.status ==
+        //        'failed') {
 
-                            $(function() {
-                                // $.ajaxSetup({
-                                //     headers: {
-                                //         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
-                                //     }
-                                // });
-                                $.ajax({
-                                    url: '{{ url('add-payment') }}',
-                                    type: 'POST',
-                                    data: $('#myForm').serialize(),
-                                    success: function(response) {
-                                        console.log("response", response);
-                                        alert('Paiement effectué avec succès')
-                                        modal.style.display = 'none';
-                                        document.getElementById('myForm').reset();
-                                        window.location.reload();
-                                    },
-                                    error: function(error) {
-                                        console.log("error", error);
-                                        alert('Erreur lors de l\'ajour du paiement')
-                                        modal.style.display = 'none';
-                                    }
-                                })
-                            })
-                        } else {
-                            // Continue polling
-                            setTimeout(checkAndHandleStatus, checkInterval);
-                        }
-                    });
-            }
 
-            checkAndHandleStatus(); // Initial check
-        }
+        // $(function() {
+        //     // $.ajaxSetup({
+        //     //     headers: {
+        //     //         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        //     //     }
+        //     // });
+        //     $.ajax({
+        //         url: '{{ url('add-payment') }}',
+        //         type: 'POST',
+        //         data: $('#myForm').serialize(),
+        //         success: function(response) {
+        //             console.log("response", response);
+        //             alert('Paiement effectué avec succès')
+        //             modal.style.display = 'none';
+        //             document.getElementById('myForm').reset();
+        //             window.location.reload();
+        //         },
+        //         error: function(error) {
+        //             console.log("error", error);
+        //             alert('Erreur lors de l\'ajour du paiement')
+        //             modal.style.display = 'none';
+        //         }
+        //     })
+        // })
+
+
+        //} else {
+        // Continue polling
+        //  setTimeout(checkAndHandleStatus, checkInterval);
+        //}
+        //});
+        //}
+
+        //checkAndHandleStatus(); // Initial check
+        //}
     </script>
 @endsection

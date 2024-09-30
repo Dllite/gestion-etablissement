@@ -5,31 +5,43 @@ namespace App\Http\Controllers;
 use App\Models\ConcourseWriter;
 use App\Models\Payment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 
 class PaymentController extends Controller
 {
-    
-    
+
+
     public function store(Request $request)
     {
         session_start();
         $data = $request->all();
+        try {
+            // Stocker les données dans la session
+            session()->put('payment_data', $data);
 
-        // Stocker les données dans la session
-        session()->put('payment_data', $data);
+            // Effectuer une action quelconque, comme enregistrer les données (facultatif)
+             Payment::create([
+                'amount_paid' => $data['total_amount'],
+                'libelle' => $data['libelle'],
+                'payment_mode' => $data['payment_mode'],
+                'contact' => $data['contact'],
+                'tranche' => $data['tranche'],
+                'user_id' => Auth::user()->id,
+                'concourse_writer_id' => $data['concourse_writer_id'],
+                'status' => 'valide',
+            ]);
 
-        // Effectuer une action quelconque, comme enregistrer les données (facultatif)
-        //Payment::create($data);
-
-        // Retourner une réponse JSON correcte
-        return response()->json(['message' => 'Données reçues et stockées avec succès dans la session!', 'data' => $data], 200);
+            // Retourner une réponse JSON correcte
+            return response()->json(['message' => 'Données reçues et stockées avec succès dans la session!', 'data' => $data], 200);
+        } catch (\Throwable $th) {
+            \Log::error("erreur lors de l'enregistrement du paiement :".$th->getMessage());
+            \Log::error("erreur :".json_encode($data));
+        }
     }
-    
-    
-    
-    
-    
+
+
+
     public function initPayment(Request $request)
     {
         // Définir les montants en fonction du type

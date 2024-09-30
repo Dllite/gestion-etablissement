@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Classe;
 use BaconQrCode\Writer;
 use BaconQrCode\Renderer\ImageRenderer;
 use BaconQrCode\Renderer\RendererStyle\RendererStyle;
@@ -16,6 +17,8 @@ class QrCodeController extends Controller
     try {
         // Récupérer les données de paiement depuis la session
         $data = session()->get('payment_data');
+        $classe = Classe::find($data['classe_id']);
+        // dd($classe);
 
         // Vérifier si les données existent dans la session
         if (!$data) {
@@ -28,6 +31,7 @@ class QrCodeController extends Controller
         // Ajout de l'ID de la facture aux données
         $data['invoice_number'] = $invoiceNumber;
         $data['date'] = now()->toDateString(); // Ajouter la date de génération
+        $data['classe_id'] = $classe->name;
 
         // Configuration pour la génération du QR code
         $renderer = new ImageRenderer(
@@ -42,7 +46,7 @@ class QrCodeController extends Controller
                          "Date : " . $data['date'] . "\n" .
                          "Ancienneté : " . $data['anciennete'] . "\n" .
                          "Cycle : " . $data['cycle'] . "\n" .
-                         "Classe : " . $data['classe_id'] . "\n" .
+                         "Classe : " .  $classe->name . "\n" .
                          "Droit Scolaire : " . $data['type'] . "\n" .
                          "Montant Total : " . number_format($data['total_amount'], 0, ',', ' ') . " FCFA\n" .
                          "Contact : " . $data['contact'] . "\n" .

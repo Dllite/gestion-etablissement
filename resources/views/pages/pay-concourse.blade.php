@@ -197,7 +197,7 @@
                                             ref; // Ajouter la référence de paiement
 
                                             // Soumettre les données au backend
-                                            fetch("{{ route('recu') }}", {
+                                            fetch("{{ route('add-concourse-writer') }}", {
                                                     method: 'POST',
                                                     headers: {
                                                         'Content-Type': 'application/json',

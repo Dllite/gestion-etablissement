@@ -25,50 +25,31 @@ class ConcourseWriterController extends Controller
 
     public function addConcourseWriters(Request $request)
     {
-        $attributes = $request->validate([
-            'first_name' => "required",
-            'last_name' => "required",
-            'type'     => "required",
-            'address'     => "required",
-            'contact' => "required",
-            'libelle' => "required",
-            'contact_number' => "required",
-            'anciennete' => "required",
-            'classe_id' => "required",
-            'payment_mode'     => "required",
-        ]);
-
-        $response = [
-            "type" => 422,
-            "message" => "",
-        ];
-
-
+        session_start();
+        $data = $request->all();
         try {
+            // Stocker les données dans la session
+            session()->put('payment_data', $data);
+            // Créer un nouvel enregistrement dans la base de données avec les données validées
+            ConcourseWriter::create([
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
+                'type' => $data['type'],
+                'address' => $data['address'],
+                'contact_number' => $data['contact'],
+                'contact' => $data['contact'],
+                'libelle' => $data['libelle'],
+                'anciennete' => $data['anciennete'],
+                'classe_id' => $data['classe_id'],
+                'payment_mode' => $data['payment_mode'],
+            ]);
 
-            ConcourseWriter::create($attributes);
-            if ($attributes['type'] === "concourse") {
-                $response = [
-                    "type" => 200,
-                    "message" => "Paiement et ajout du candidat effectuer avec succes",
-                ];
-            } else {
-                $response = [
-                    "type" => 200,
-                    "message" => "Paiement et demande d'analyse du dossier effectuer avec succes",
-                ];
-            }
+            // Retourner une réponse JSON correcte
+            return response()->json(['message' => 'Données reçues et stockées avec succès dans la session!', 'data' => $data], 200);
         } catch (\Throwable $th) {
-            //throw $th;
-            // dd($th->getMessage());
-            $response = [
-                "type" => 500,
-                "message" => $th->getMessage(),
-            ];
+            \Log::error("erreur lors de l'enregistrement du paiement :" . $th->getMessage());
+            \Log::error("erreur :" . json_encode($data));
         }
-
-        return response($response['message'], $response['type']);
-        // return response()->json(['message' => 'Data submitted successfully']);
     }
 
     public function checkEmail($email)

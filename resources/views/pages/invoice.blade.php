@@ -148,7 +148,7 @@
 </div>
 
 <div class="text-center mt-5">
-    <a href="/" class="btn btn-back">Retour à la Page d'Accueil</a>
+    <a href="{{ url()->previous()}}" class="btn btn-back">Retour</a>
 </div>
 <!-- Boutons d'actions -->
 <div class="text-center mt-4">
