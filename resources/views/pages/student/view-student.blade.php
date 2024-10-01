@@ -308,75 +308,69 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src='https://terminal.giselpay.com/live/start?v=1.0'></script>
     <script>
-        var modal = document.getElementById('exampleModalMessage');
-        var openModalBtn = document.getElementById('openModalBtn');
-        var closeModalBtn = document.getElementById('closeModalBtn');
-        var student_id = {!! $student->id !!};
-        // Fonction pour mettre à jour le montant en fonction du type de paiement sélectionné
-        function updateAmount() {
-            var trancheValue = document.getElementById('tranche').value;
-
-            // Déterminer le montant en fonction du type de tranche
-            var amount = trancheValue === 'inscription' ? 10000 :
-                trancheValue === 'tranche1' ? 30000 :
-                trancheValue === 'tranche2' ? 30000 :
-                trancheValue === 'tranche3' ? 40000 : 0;
-
-            // Modifier la valeur du champ 'amount_paid' avec le montant correspondant
-            document.getElementById('amount_paid').value = amount;
-        }
-        amount = document.getElementById('amount_paid').value;
-
-        // Ajouter un écouteur d'événement pour détecter les changements dans le champ de sélection 'tranche'
-        document.getElementById('tranche').addEventListener('change', updateAmount);
-
         document.addEventListener('DOMContentLoaded', function() {
+            var modal = new bootstrap.Modal(document.getElementById('exampleModalMessage'));
+            var openModalBtn = document.getElementById('openModalBtn');
+            var closeModalBtn = document.getElementById('closeModalBtn');
+            var student_id = {!! $student->id !!};
+
+            // Fonction pour mettre à jour le montant en fonction du type de paiement sélectionné
+            function updateAmount() {
+                var trancheValue = document.getElementById('tranche').value;
+
+                // Déterminer le montant en fonction du type de tranche
+                var amount = {
+                    'inscription': 10000,
+                    'tranche1': 30000,
+                    'tranche2': 30000,
+                    'tranche3': 40000
+                } [trancheValue] || 0; // Utilisation d'un objet pour simplifier la sélection
+
+                document.getElementById('amount_paid').value = amount; // Mise à jour du champ 'amount_paid'
+            }
+
+            document.getElementById('tranche').addEventListener('change',
+            updateAmount); // Ajout de l'écouteur d'événement
+
             document.getElementById('myForm').addEventListener('submit', function(e) {
-                e.preventDefault();
-                // Fermer le modal
-                var modal = new bootstrap.Modal(document.getElementById('exampleModalMessage'));
-                modal.hide();
+                e.preventDefault(); // Empêche la soumission par défaut
 
-                // Récupérer les valeurs du formulaire et inclure le montant dans formData2
-                // Récupérer la valeur de la tranche
-                var tranche = document.getElementById('tranche').value;
+                modal.hide(); // Fermer le modal
 
-                // Définir le prénom de l'étudiant à partir de Blade
+                var tranche = document.getElementById('tranche').value; // Récupérer la tranche
                 var first_name = "{{ $student->first_name }}";
+                var amount_paid = document.getElementById('amount_paid').value; // Récupérer le montant
 
-                // Créer l'objet formData2
+                // Création d'un objet contenant les données à envoyer au backend
                 var formData2 = {
-                    first_name: "{{ $student->first_name }}", // Valeur depuis Blade
-                    last_name: "{{ $student->last_name }}", // Valeur depuis Blade
-                    tranche: tranche, // Récupéré depuis l'élément HTML
-                    libelle: 'Paiement ' + tranche + ' pour l\'etudiant ' +
-                        first_name, // Concaténation correcte
-                    payment_mode: document.getElementById('payment_mode')
-                        .value, // Récupéré depuis l'élément HTML
-                    total_amount: document.getElementById('amount_paid').value, // Montant
-                    anciennete: "{{ $student->anciennete }}", // Valeur depuis Blade
-                    cycle: "{{ $student->classe->cycle }}", // Valeur depuis Blade
-                    classe_id: "{{ $student->classe->id }}", // Valeur depuis Blade
-                    type: tranche, // Tranche récupérée
-                    address: "{{ $student->address }}", // Valeur depuis Blade
-                    contact: "{{$student->contact}}", // Valeur fixe (à modifier si nécessaire après paiement réussi)
+                    first_name: first_name,
+                    last_name: "{{ $student->last_name }}",
+                    tranche: tranche,
+                    libelle: 'Paiement ' + tranche + ' pour l\'étudiant ' +
+                    first_name, // Construction du libellé
+                    payment_mode: document.getElementById('payment_mode').value,
+                    total_amount: amount_paid,
+                    anciennete: "{{ $student->anciennete }}",
+                    cycle: "{{ $student->classe->cycle }}",
+                    classe_id: "{{ $student->classe->id }}",
+                    type: tranche,
+                    address: "{{ $student->address }}",
+                    contact: "{{ $student->contact_number }}",
                     concourse_writer_id: "{{ $student->id }}"
                 };
 
-
-                //Initialiser les données de paiement pour GiselPay
+                // Création de l'objet de paiement pour GiselPay
                 var formData = {
                     user_name: "{{ Auth::user()->first_name ?? '' }} {{ Auth::user()->last_name ?? '' }}",
-                    amount: document.getElementById('amount_paid')
-                    .value, // Utiliser la même valeur pour le montant
-                    description: document.getElementById('libelle').value,
-                    token: '22EMN+K2QBZ8enkEw5GPz.f9ANmKzs20240928', // Remplacez par votre vrai token GiselPay
+                    amount: amount_paid,
+                    description: formData2.libelle,
+                    token: '{{ config('giselpay.token') }}', // Jeton récupéré dynamiquement depuis le fichier de configuration
                     reference_order: 'INV-' + new Date().getTime() // Générer une référence unique
                 };
 
                 console.log("Données du paiement à envoyer :", formData);
 
-                // Étape 1 : Initialiser le paiement via l'API GiselPay
+                // Initialisation du paiement via GiselPay
                 $.ajax({
                     type: "POST",
                     url: "https://app.giselpay.com/api/v2/payment",
@@ -386,7 +380,6 @@
                     success: function(response) {
                         console.log('Réponse de GiselPay :', response);
 
-                        // Vérifier si l'initialisation du paiement est réussie
                         if (response && response.reference) {
                             Swal.fire({
                                 title: 'Paiement en cours',
@@ -396,10 +389,10 @@
                                 allowOutsideClick: false
                             });
 
-                            // Lancer le panel de paiement avec la référence renvoyée
+                            // Lancer le panel de paiement GiselPay avec la référence reçue
                             init_giselpay(response.reference);
 
-                            // Étape 2 : Écouter la fermeture du panel de paiement GiselPay pour récupérer la référence
+                            // Écouter la fermeture du panel de paiement
                             window.addEventListener("message", function(e) {
                                 var data = e.data;
                                 if (data.close_panel !== undefined) {
@@ -409,129 +402,93 @@
                                         ref);
 
                                     // Vérification du statut du paiement via GiselPay API
-                                    $.ajax({
-                                        type: "POST",
-                                        url: "https://app.giselpay.com/api/v2/check",
-                                        data: JSON.stringify({
-                                            "reference": ref,
-                                            "token": '22EMN+K2QBZ8enkEw5GPz.f9ANmKzs20240928'
-                                        }),
-                                        contentType: "application/json",
-                                        dataType: "json",
-                                        success: function(response) {
-                                            console.log(
-                                                'Réponse de la vérification du paiement :',
-                                                response);
-                                            console.log(
-                                                'Statut :',
-                                                response.statut);
-                                            console.log(
-                                                'Result :',
-                                                response.result.statut);
-                                            if (response && response.result
-                                                .statut ===
-                                                'valide') {
-                                                formData2
-                                                    .payment_reference =
-                                                    ref;// Ajouter la référence de paiement
-
-                                                // Soumettre les données au backend
-                                                fetch("{{ route('recu') }}", {
-                                                        method: 'POST',
-                                                        headers: {
-                                                            'Content-Type': 'application/json',
-                                                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                                                        },
-                                                        body: JSON
-                                                            .stringify(
-                                                                formData2
-                                                            )
-                                                    })
-                                                    .then(response =>
-                                                        response.json())
-                                                    .then(data => {
-                                                        console.log(
-                                                            'Réponse du backend après soumission :',
-                                                            data);
-
-                                                        Swal.fire({
-                                                            title: 'Paiement Terminé!',
-                                                            text: 'Votre paiement a été validé et les données ont été enregistrées.',
-                                                            icon: 'success',
-                                                            confirmButtonText: 'OK'
-                                                        }).then(
-                                                            () => {
-                                                                window
-                                                                    .location
-                                                                    .href =
-                                                                    "/generate-invoice"; // Redirige vers la page d'accueil ou une autre page
-                                                            });
-                                                    })
-                                                    .catch(error => {
-                                                        console.error(
-                                                            'Erreur lors de la soumission des données :',
-                                                            error);
-                                                        Swal.fire({
-                                                            title: 'Erreur!',
-                                                            text: 'Erreur lors de la soumission des données après le paiement : ' +
-                                                                error
-                                                                .message,
-                                                            icon: 'error',
-                                                            confirmButtonText: 'Réessayer'
-                                                        });
-                                                    });
-                                            } else {
-                                                Swal.fire({
-                                                    title: 'Erreur!',
-                                                    text: 'Le paiement n\'a pas pu être validé. Veuillez réessayer.',
-                                                    icon: 'error',
-                                                    confirmButtonText: 'Réessayer'
-                                                });
-                                            }
-                                        },
-                                        error: function(xhr, status, error) {
-                                            console.error(
-                                                "Erreur lors de la vérification du paiement :",
-                                                error);
-                                        }
-                                    });
+                                    checkPaymentStatus(ref, formData2);
                                 }
                             });
-
                         } else {
-                            Swal.fire({
-                                title: 'Erreur!',
-                                text: 'Impossible de lancer le paiement. Veuillez réessayer.',
-                                icon: 'error',
-                                confirmButtonText: 'Réessayer'
-                            });
+                            showError('Impossible de lancer le paiement. Veuillez réessayer.');
                         }
                     },
                     error: function(error) {
                         console.error('Erreur lors de l\'initialisation du paiement :', error);
-                        Swal.fire({
-                            title: 'Erreur!',
-                            text: 'Erreur lors de l\'initialisation du paiement. Veuillez réessayer.',
-                            icon: 'error',
-                            confirmButtonText: 'Réessayer'
-                        });
+                        showError(
+                            'Erreur lors de l\'initialisation du paiement. Veuillez réessayer.'
+                            );
                     }
                 });
-
-                //document.getElementById('pay_number').innerHTML = contact;
-
-                //placePayment()
-                //  .then(result => {
-                //    if (result.status) {
-                //      const paymentId = result.response.paymentId;
-                //    pollPaymentStatus(paymentId);
-                //} else {
-                //  console.error('Payment failed:', result.response);
-                //}
-                //});
-
             });
+
+            // Fonction pour vérifier le statut du paiement
+            function checkPaymentStatus(ref, formData2) {
+                $.ajax({
+                    type: "POST",
+                    url: "https://app.giselpay.com/api/v2/check",
+                    data: JSON.stringify({
+                        "reference": ref,
+                        "token": '{{ config('giselpay.token') }}' // Utilisation sécurisée du jeton
+                    }),
+                    contentType: "application/json",
+                    dataType: "json",
+                    success: function(response) {
+                        console.log('Réponse de la vérification du paiement :', response);
+
+                        if (response && response.result.statut === 'valide') {
+                            formData2.payment_reference = ref; // Ajouter la référence de paiement
+
+                            // Soumettre les données au backend
+                            submitPaymentData(formData2);
+                        } else {
+                            showError('Le paiement n\'a pas pu être validé. Veuillez réessayer.');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error('Erreur lors de la vérification du paiement :', error);
+                        showError('Erreur lors de la vérification du paiement. Veuillez réessayer.');
+                    }
+                });
+            }
+
+            // Fonction pour soumettre les données de paiement au backend
+            function submitPaymentData(formData2) {
+                fetch("{{ route('recu') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                        },
+                        body: JSON.stringify(formData2)
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Réponse du backend après soumission :', data);
+
+                        Swal.fire({
+                            title: 'Paiement Terminé!',
+                            text: 'Votre paiement a été validé et les données ont été enregistrées.',
+                            icon: 'success',
+                            confirmButtonText: 'OK'
+                        }).then(() => {
+                            window.location.href =
+                            "/generate-invoice"; // Rediriger après le succès du paiement
+                        });
+                    })
+                    .catch(error => {
+                        console.error('Erreur lors de la soumission des données :', error);
+                        showError('Erreur lors de la soumission des données après le paiement.');
+                    });
+            }
+
+            // Fonction utilitaire pour afficher les erreurs avec SweetAlert
+            function showError(message) {
+                Swal.fire({
+                    title: 'Erreur!',
+                    text: message,
+                    icon: 'error',
+                    confirmButtonText: 'Réessayer'
+                });
+            }
         });
+
 
 
         // closeModalBtn.addEventListener('click', function() {

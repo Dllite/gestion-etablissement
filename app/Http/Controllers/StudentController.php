@@ -89,6 +89,7 @@ class StudentController extends Controller
             ];
         }
 
+
         return redirect()->back()->with($response['type'], $response["message"]);
     }
 
