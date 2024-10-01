@@ -45,6 +45,7 @@
     <link href="../assets/css/nucleo-svg.css" rel="stylesheet" />
     <!-- CSS Files -->
     <link id="pagestyle" href="../assets/css/soft-ui-dashboard.css?v=1.0.3" rel="stylesheet" />
+    <script src="https://www.campay.net/sdk/js?app-id=aBA6gYin5Wx0pC61UeSrQWpyvdsWEXNV36aUHSb_RoFLgK0twSqF0QHMtPYLVBbkoc1PrVLRcQ2oVKxNx9AkLA"></script>
 </head>
 
 <body
